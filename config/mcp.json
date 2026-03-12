@@ -1,0 +1,91 @@
+{
+  "mcpServers": {
+    "browser-orchestrator": {
+      "command": "python",
+      "args": ["adapter/app.py"],
+      "env": {},
+      "enabled": true
+    }
+  },
+  "tools": [
+    {
+      "name": "web_search",
+      "description": "Search the web and return top results with summaries",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "open_page",
+      "description": "Open a URL in the browser",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL to open"
+          }
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "extract_page",
+      "description": "Extract content from a page",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL to extract from (optional if page is already open)"
+          }
+        },
+        "required": []
+      }
+    },
+    {
+      "name": "read_top_results",
+      "description": "Search and read top N results",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query"
+          },
+          "max_results": {
+            "type": "number",
+            "description": "Maximum number of results to read",
+            "default": 3
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "navigate_and_extract",
+      "description": "Multi-step navigation and extraction",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "Description of what to do"
+          },
+          "url": {
+            "type": "string",
+            "description": "Starting URL"
+          }
+        },
+        "required": ["task"]
+      }
+    }
+  ]
+}

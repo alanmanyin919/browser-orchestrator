@@ -1,0 +1,49 @@
+# Browser Routing Policy
+# Defines when to use primary vs fallback
+
+# Primary backend configuration
+primary:
+  name: "playwright-mcp"
+  timeout_seconds: 30
+  max_retries: 2
+
+# Fallback backend configuration
+fallback:
+  name: "better-browser-use"
+  timeout_seconds: 60
+  max_retries: 1
+
+# Fallback triggers - when to use fallback
+fallback_triggers:
+  - type: "extraction_failed"
+    description: "Primary extraction failed twice"
+  - type: "navigation_stuck"
+    description: "Primary navigation got stuck"
+  - type: "dynamic_content"
+    description: "Page content too dynamic for stable extraction"
+  - type: "multi_step_workflow"
+    description: "Task requires multi-step browsing workflow"
+
+# Stop conditions - when to abort and report
+stop_conditions:
+  - type: "captcha"
+    action: "blocked"
+    message: "CAPTCHA challenge detected"
+  - type: "login_required"
+    action: "blocked"
+    message: "Login required to access this content"
+  - type: "human_verification"
+    action: "blocked"
+    message: "Human verification required"
+  - type: "access_denied"
+    action: "restricted"
+    message: "Access denied to this resource"
+  - type: "forbidden_content"
+    action: "restricted"
+    message: "Content access is forbidden"
+
+# Output normalization
+output:
+  schema_version: "1.0"
+  include_metadata: true
+  include_visited_urls: true

@@ -1,0 +1,17 @@
+{
+  "name": "clawbot-browser-orchestrator",
+  "version": "1.0.0",
+  "description": "Browser automation MCP stack with Playwright and fallback",
+  "main": "adapter/app.py",
+  "scripts": {
+    "start": "python adapter/app.py",
+    "start:primary": "./scripts/start_primary.sh",
+    "start:fallback": "./scripts/start_fallback.sh",
+    "start:all": "./scripts/start_all.sh",
+    "health": "./scripts/healthcheck.sh",
+    "test": "pytest tests/"
+  },
+  "keywords": ["browser", "automation", "mcp", "playwright", "openclaw"],
+  "author": "",
+  "license": "MIT"
+}
