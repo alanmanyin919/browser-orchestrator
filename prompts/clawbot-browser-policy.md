@@ -17,8 +17,8 @@ When you need browser automation, use this orchestrator.
 ## Important Rules
 
 1. **Try simple tools first** - `web_search` is usually enough
-2. **Primary is default** - Playwright MCP handles most cases
-3. **Fallback is automatic** - Router decides if fallback needed
+2. **Main backend is browser-use** - it handles most research and workflow tasks
+3. **Playwright is for direct page access** - the router prefers it for `open_page` and `extract_page`
 4. **Respect blocks** - If blocked, stop and report
 
 ## Don't

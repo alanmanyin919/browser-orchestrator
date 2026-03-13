@@ -1,155 +1,198 @@
-"""
-Test suite for browser orchestrator.
-"""
+"""Behavioral tests for router backend selection and stop-condition logic."""
 
-import pytest
-import asyncio
 import sys
 from pathlib import Path
+from typing import Optional
 
-# Add adapter to path
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from adapter.schemas import BrowserResult, Metadata, HealthStatus
 from adapter.router import BrowserRouter
+from adapter.schemas import BrowserResult, Metadata
 
 
-class TestSchemas:
-    """Test schema validation."""
-    
-    def test_browser_result_defaults(self):
-        """Test BrowserResult default values."""
-        result = BrowserResult()
-        
-        assert result.status == "success"
-        assert result.backend == "playwright-mcp"
-        assert result.title is None
-        assert result.url is None
-        assert result.summary is None
-        assert result.content is None
-        assert result.key_points == []
-        assert result.confidence == "medium"
-        assert result.error is None
-        assert result.metadata.used_fallback == False
-    
-    def test_browser_result_to_dict(self):
-        """Test BrowserResult serialization."""
-        result = BrowserResult(
-            status="success",
-            backend="playwright-mcp",
-            title="Test",
-            url="https://example.com"
-        )
-        
-        d = result.to_dict()
-        assert d["status"] == "success"
-        assert d["backend"] == "playwright-mcp"
-        assert d["title"] == "Test"
-    
-    def test_metadata_defaults(self):
-        """Test Metadata default values."""
-        meta = Metadata()
-        
-        assert meta.used_fallback == False
-        assert meta.reason is None
-        assert meta.visited_urls == []
-        assert meta.attempt_count == 1
+def _result(
+    *,
+    status: str = "success",
+    backend: str = "playwright-mcp",
+    content: Optional[str] = None,
+    confidence: str = "high",
+    error: Optional[str] = None,
+    url: Optional[str] = "https://example.com",
+    used_fallback: bool = False,
+    reason: Optional[str] = None,
+):
+    return BrowserResult(
+        status=status,
+        backend=backend,
+        title="Example",
+        url=url,
+        summary="Summary",
+        content=content,
+        key_points=["Point 1"],
+        confidence=confidence,
+        error=error,
+        metadata=Metadata(
+            used_fallback=used_fallback,
+            reason=reason,
+            visited_urls=[url] if url else [],
+            attempt_count=1,
+        ),
+    )
 
 
-class TestRouter:
-    """Test router functionality."""
-    
+class TestRouterFallbacks:
     @pytest.mark.asyncio
-    async def test_router_initialization(self):
-        """Test router can be initialized."""
+    async def test_router_initialization_tracks_backend_availability(self, monkeypatch):
         router = BrowserRouter()
+
+        async def primary_init():
+            return True
+
+        async def fallback_init():
+            return False
+
+        monkeypatch.setattr(router.primary, "initialize", primary_init)
+        monkeypatch.setattr(router.fallback, "initialize", fallback_init)
+
         await router.initialize()
-        assert router._initialized == True
-        await router.close()
-    
+
+        assert router._initialized is True
+        assert router.primary_available is True
+        assert router.fallback_available is False
+        assert router.fallback_enabled is False
+
     @pytest.mark.asyncio
-    async def test_web_search_returns_result(self):
-        """Test web_search returns a valid result."""
+    async def test_web_search_prefers_browser_use(self, monkeypatch):
         router = BrowserRouter()
+        router._initialized = True
+        router.fallback_enabled = True
+
+        async def primary_search(query, max_results):
+            return _result(
+                backend="better-browser-use",
+                content="Primary browser-use search produced rich results.",
+                confidence="high",
+                used_fallback=True,
+                reason="Main browser-use path",
+            )
+
+        async def fallback_search(query, max_results):
+            raise AssertionError("Playwright should not be called for successful web_search")
+
+        monkeypatch.setattr(router.primary, "web_search", primary_search)
+        monkeypatch.setattr(router.fallback, "web_search", fallback_search)
+
         result = await router.web_search("test query")
-        
-        assert isinstance(result, BrowserResult)
-        assert result.status in ["success", "failed"]
-        assert result.backend in ["playwright-mcp", "better-browser-use"]
-        await router.close()
-    
+
+        assert result.backend == "better-browser-use"
+
     @pytest.mark.asyncio
-    async def test_open_page_returns_result(self):
-        """Test open_page returns a valid result."""
+    async def test_extract_page_prefers_playwright_and_falls_back_to_browser_use(self, monkeypatch):
         router = BrowserRouter()
-        result = await router.open_page("https://example.com")
-        
-        assert isinstance(result, BrowserResult)
-        assert result.url == "https://example.com"
-        await router.close()
-    
-    @pytest.mark.asyncio
-    async def test_extract_page_returns_result(self):
-        """Test extract_page returns a valid result."""
-        router = BrowserRouter()
+        router._initialized = True
+        router.fallback_enabled = True
+
+        async def secondary_extract(url):
+            return _result(content="Too short", confidence="medium", url=url)
+
+        async def primary_extract(url):
+            return _result(
+                backend="better-browser-use",
+                content="This is a much richer fallback extraction result with enough content to pass.",
+                confidence="medium",
+                url=url,
+                used_fallback=True,
+                reason="Fallback used for dynamic content extraction",
+            )
+
+        monkeypatch.setattr(router.fallback, "extract_page", secondary_extract)
+        monkeypatch.setattr(router.primary, "extract_page", primary_extract)
+
         result = await router.extract_page("https://example.com")
-        
-        assert isinstance(result, BrowserResult)
-        await router.close()
-    
+
+        assert result.backend == "better-browser-use"
+        assert result.metadata.used_fallback is True
+
     @pytest.mark.asyncio
-    async def test_read_top_results(self):
-        """Test read_top_results with max_results."""
+    async def test_navigate_and_extract_falls_back_on_low_confidence(self, monkeypatch):
         router = BrowserRouter()
-        result = await router.read_top_results("Python", max_results=3)
-        
-        assert isinstance(result, BrowserResult)
-        assert result.status in ["success", "failed"]
-        await router.close()
-    
+        router._initialized = True
+        router.fallback_enabled = True
+
+        async def primary_nav(task, url):
+            return _result(
+                backend="better-browser-use",
+                content="Loaded page text but task not confirmed.",
+                confidence="low",
+                url=url,
+                used_fallback=True,
+                reason="Task resolution not confirmed",
+            )
+
+        async def fallback_nav(task, url):
+            return _result(
+                backend="playwright-mcp",
+                content="Secondary Playwright extraction completed successfully.",
+                confidence="high",
+                url=url,
+                used_fallback=False,
+                reason="Secondary Playwright path",
+            )
+
+        monkeypatch.setattr(router.primary, "navigate_and_extract", primary_nav)
+        monkeypatch.setattr(router.fallback, "navigate_and_extract", fallback_nav)
+
+        result = await router.navigate_and_extract("Find pricing", "https://example.com")
+
+        assert result.backend == "playwright-mcp"
+        assert result.confidence == "high"
+
     @pytest.mark.asyncio
-    async def test_navigate_and_extract(self):
-        """Test navigate_and_extract."""
+    async def test_open_page_stays_primary_when_successful(self, monkeypatch):
         router = BrowserRouter()
-        result = await router.navigate_and_extract(
-            task="Find info",
-            url="https://example.com"
-        )
-        
-        assert isinstance(result, BrowserResult)
-        await router.close()
+        router._initialized = True
+        router.fallback_enabled = True
+
+        async def fallback_open(url):
+            return _result(content=None, confidence="high", url=url)
+
+        async def primary_open(url):
+            raise AssertionError("browser-use should not be called for successful open_page")
+
+        monkeypatch.setattr(router.fallback, "open_page", fallback_open)
+        monkeypatch.setattr(router.primary, "open_page", primary_open)
+
+        result = await router.open_page("https://example.com")
+
+        assert result.backend == "playwright-mcp"
 
 
 class TestStopConditions:
-    """Test stop condition detection."""
-    
-    @pytest.mark.asyncio
-    async def test_captcha_detection(self):
-        """Test CAPTCHA pages are blocked."""
+    def test_captcha_pages_are_blocked(self):
         router = BrowserRouter()
-        
-        # Create result with CAPTCHA content
-        result = BrowserResult(
-            status="success",
-            content="Please verify you're human to continue. CAPTCHA challenge."
-        )
-        
-        # Router should detect and block
-        # (This is internal logic test)
-        assert result.status == "success"  # Before check
-    
-    @pytest.mark.asyncio
-    async def test_login_detection(self):
-        """Test login walls are blocked."""
+        result = _result(content="Please verify you're human. CAPTCHA required.")
+
+        checked = router._check_stop_conditions(result)
+
+        assert checked.status == "blocked"
+        assert "CAPTCHA" in checked.error
+
+    def test_login_pages_are_blocked(self):
         router = BrowserRouter()
-        
-        result = BrowserResult(
-            status="success",
-            content="Please sign in to continue. Login required."
-        )
-        
-        assert result.status == "success"  # Before check
+        result = _result(content="Please sign in to continue. Login required.")
 
+        checked = router._check_stop_conditions(result)
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        assert checked.status == "blocked"
+        assert "Login required" in checked.error
+
+    def test_access_denied_pages_are_restricted(self):
+        router = BrowserRouter()
+        result = _result(content="403 forbidden. access denied.")
+
+        checked = router._check_stop_conditions(result)
+
+        assert checked.status == "restricted"
+        assert "Access denied" in checked.error

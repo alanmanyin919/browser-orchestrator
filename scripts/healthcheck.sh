@@ -9,10 +9,10 @@ echo "Checking Orchestrator..."
 HEALTH=$(curl -s http://localhost:3101/health)
 if [ $? -eq 0 ]; then
     echo "✅ Orchestrator: OK"
-    echo "$HEALTH" | python -m json.tool 2>/dev/null || echo "$HEALTH"
+    echo "$HEALTH" | python3 -m json.tool 2>/dev/null || echo "$HEALTH"
 else
     echo "❌ Orchestrator: FAILED"
-    echo "Is the orchestrator running? (python adapter/app.py)"
+    echo "Is the orchestrator running? (python3 adapter/app.py)"
     exit 1
 fi
 

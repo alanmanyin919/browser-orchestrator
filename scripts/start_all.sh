@@ -22,25 +22,25 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
-# Start Primary (Playwright MCP)
-echo "[1/3] Starting Playwright MCP..."
-./scripts/start_primary.sh &
-PRIMARY_PID=$!
-
-# Wait a bit
-sleep 2
-
-# Start Fallback (Better Browser Use)
-echo "[2/3] Starting Better Browser Use..."
+# Start Main backend config (browser-use)
+echo "[1/3] Preparing browser-use..."
 ./scripts/start_fallback.sh &
 FALLBACK_PID=$!
 
 # Wait a bit
 sleep 2
 
+# Start Secondary backend config (Playwright)
+echo "[2/3] Preparing Playwright MCP..."
+./scripts/start_primary.sh &
+PRIMARY_PID=$!
+
+# Wait a bit
+sleep 2
+
 # Start Orchestrator
 echo "[3/3] Starting Orchestrator..."
-python adapter/app.py &
+python3 adapter/app.py &
 ORCH_PID=$!
 
 echo ""

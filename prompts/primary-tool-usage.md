@@ -1,21 +1,21 @@
-# Primary Tool Usage - Playwright MCP
+# Main Tool Usage - browser-use
 
 ## When to Use
 
-Playwright MCP is your **default choice**. Use it for:
+`browser-use` is the **default choice**. Use it for:
 
-- Simple web searches
-- Reading static pages
-- Basic navigation
-- Fast information retrieval
-- Most common browser tasks
+- Web searches
+- Topic research
+- Multi-page reading
+- Multi-step browsing workflows
+- Dynamic sites that need more adaptive interaction
 
 ## Why Primary?
 
-- ✅ Fast
-- ✅ Stable
-- ✅ Well-supported
-- ✅ Good for 90% of tasks
+- ✅ Better for research workflows
+- ✅ Handles multi-step browsing
+- ✅ Good default for agentic tasks
+- ✅ Main access path in this project
 
 ## Usage Examples
 
@@ -57,7 +57,7 @@ result = await router.navigate_and_extract(
 ```json
 {
   "status": "success",
-  "backend": "playwright-mcp",
+  "backend": "better-browser-use",
   "title": "Page Title",
   "url": "https://example.com",
   "summary": "Short summary",
@@ -69,8 +69,8 @@ result = await router.navigate_and_extract(
 
 ## When It Might Fail
 
-- Complex JavaScript pages
-- Heavy dynamic content
-- Multi-step workflows
+- Deterministic direct page access
+- Lightweight single-page extraction
+- Sites where a simple page load is enough
 
-**That's okay** - the router will automatically try the fallback.
+**That's okay** - the router will automatically try Playwright when a direct page-access path is better.

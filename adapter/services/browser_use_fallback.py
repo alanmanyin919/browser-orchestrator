@@ -1,258 +1,261 @@
 """
-Better-Browser-Use Fallback Service Wrapper.
+browser-use fallback service.
 
-This service is the FALLBACK backend - used only when primary fails.
-It handles more complex dynamic pages that Playwright struggles with.
+This implementation runs browser-use in-process and uses an OpenAI-compatible
+model configuration, which can point at MiniMax.
 """
 
+from __future__ import annotations
+
 import asyncio
-from typing import Optional, List, Dict, Any
-from ..schemas import BrowserResult, Metadata
+import os
+from typing import Any, Dict, List, Optional
+
 from ..logging_config import get_logger
+from ..schemas import BrowserResult, Metadata
 
 logger = get_logger("browser-use-fallback")
 
 
 class BrowserUseFallbackService:
-    """
-    Fallback browser service using better-browser-use.
-    
-    This is the SECONDARY backend - used only when primary fails
-    or is unsuitable for the task.
-    
-    Use for:
-    - Complex dynamic pages
-    - Multi-step workflows
-    - Pages that require more sophisticated interaction
-    """
-    
-    def __init__(self, config: Dict[str, Any] = None):
+    """Fallback browser service backed by browser-use."""
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
-        self.api_url = self.config.get("api_url", "http://localhost:8000")
-        self.max_steps = self.config.get("max_steps", 10)
-        self.session = None
-    
-    async def initialize(self) -> bool:
-        """Initialize better-browser-use connection."""
-        try:
-            logger.info("Initializing better-browser-use fallback service...")
-            # In production, would connect to browser-use API
-            logger.info("Better-browser-use fallback service initialized")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to initialize fallback: {e}")
-            return False
-    
-    async def _check_blocked(self, page_content: str) -> Optional[str]:
-        """
-        Check if page is blocked by anti-bot measures.
-        
-        Returns None if not blocked, otherwise returns blocking type.
-        """
-        block_indicators = {
-            "captcha": ["captcha", "recaptcha", "verify you're human"],
-            "login": ["sign in", "login", "password", "email"],
-            "verification": ["verify", "human verification"],
-            "forbidden": ["403", "forbidden", "access denied", "blocked"]
-        }
-        
-        content_lower = page_content.lower()
-        
-        for block_type, indicators in block_indicators.items():
-            if any(ind in content_lower for ind in indicators):
-                logger.warning(f"Fallback: Detected {block_type}")
-                return block_type
-        
-        return None
-    
-    async def web_search(self, query: str, max_results: int = 5) -> BrowserResult:
-        """
-        Perform web search using fallback.
-        
-        Uses more sophisticated browsing for complex search results.
-        """
-        logger.info(f"Fallback: Performing web search for '{query}'")
-        
-        try:
-            # In production: Use better-browser-use API
-            # This handles more complex pages better
-            
-            visited_urls = []
-            
-            # Simulated fallback search
-            result = BrowserResult(
-                status="success",
-                backend="better-browser-use",
-                title=f"Search results for: {query}",
-                url=f"https://duckduckgo.com/?q={query}",
-                summary=f"Found {max_results} results for '{query}' (via fallback)",
-                content="",
-                key_points=[f"Result 1: {query} - first match", f"Result 2: {query} - second match"],
-                confidence="medium",
-                metadata=Metadata(
-                    used_fallback=True,
-                    reason="Fallback used for complex search",
-                    visited_urls=visited_urls,
-                    attempt_count=1
-                )
-            )
-            
-            logger.info(f"Fallback: Search completed")
-            return result
-            
-        except Exception as e:
-            logger.error(f"Fallback search failed: {e}")
-            return BrowserResult(
-                status="failed",
-                backend="better-browser-use",
-                error=str(e),
-                metadata=Metadata(used_fallback=True, attempt_count=1)
-            )
-    
-    async def open_page(self, url: str) -> BrowserResult:
-        """Open a URL using fallback."""
-        logger.info(f"Fallback: Opening page {url}")
-        
-        try:
-            # In production: Use browser-use to navigate
-            
-            result = BrowserResult(
-                status="success",
-                backend="better-browser-use",
-                title=f"Page: {url}",
-                url=url,
-                summary=f"Opened {url} (via fallback)",
-                content="",
-                confidence="medium",
-                metadata=Metadata(
-                    used_fallback=True,
-                    reason="Fallback used for complex navigation",
-                    visited_urls=[url],
-                    attempt_count=1
-                )
-            )
-            
-            logger.info(f"Fallback: Page opened")
-            return result
-            
-        except Exception as e:
-            logger.error(f"Fallback open_page failed: {e}")
-            return BrowserResult(
-                status="failed",
-                backend="better-browser-use",
-                url=url,
-                error=str(e),
-                metadata=Metadata(used_fallback=True, attempt_count=1)
-            )
-    
-    async def extract_page(self, url: Optional[str] = None) -> BrowserResult:
-        """Extract content from page using fallback."""
-        logger.info(f"Fallback: Extracting page content")
-        
-        try:
-            # In production: Use browser-use for extraction
-            # Better at handling dynamic content
-            
-            target_url = url or "current_page"
-            
-            result = BrowserResult(
-                status="success",
-                backend="better-browser-use",
-                title="Extracted Page (Fallback)",
-                url=target_url,
-                summary="Page content extracted via fallback",
-                content="Extracted content via better-browser-use...",
-                confidence="medium",
-                metadata=Metadata(
-                    used_fallback=True,
-                    reason="Fallback used for dynamic content extraction",
-                    visited_urls=[target_url] if target_url else [],
-                    attempt_count=1
-                )
-            )
-            
-            logger.info(f"Fallback: Extraction completed")
-            return result
-            
-        except Exception as e:
-            logger.error(f"Fallback extract failed: {e}")
-            return BrowserResult(
-                status="failed",
-                backend="better-browser-use",
-                error=str(e),
-                metadata=Metadata(used_fallback=True, attempt_count=1)
-            )
-    
-    async def read_top_results(self, query: str, max_results: int = 3) -> BrowserResult:
-        """Search and read top N results using fallback."""
-        logger.info(f"Fallback: Reading top {max_results} results")
-        
-        search_result = await self.web_search(query, max_results)
-        
-        if search_result.status == "failed":
-            return search_result
-        
-        visited = [search_result.url] if search_result.url else []
-        
-        result = BrowserResult(
-            status="success",
-            backend="better-browser-use",
-            title=f"Top {max_results} results for: {query}",
-            url=search_result.url,
-            summary=f"Read top {max_results} results (via fallback)",
-            content=f"Summary of {max_results} pages about {query}",
-            key_points=search_result.key_points,
-            confidence="medium",
-            metadata=Metadata(
-                used_fallback=True,
-                reason="Fallback used for multi-page reading",
-                visited_urls=visited,
-                attempt_count=1
-            )
+        self.model = self.config.get("model", os.getenv("BROWSER_USE_MODEL", "MiniMax-Text-01"))
+        self.api_key = self.config.get("api_key", os.getenv("BROWSER_USE_API_KEY"))
+        self.base_url = self.config.get("base_url", os.getenv("BROWSER_USE_BASE_URL"))
+        self.max_steps = int(self.config.get("max_steps", os.getenv("BROWSER_USE_MAX_STEPS", "12")))
+        self.timeout_seconds = int(
+            self.config.get("timeout_seconds", os.getenv("BROWSER_USE_TIMEOUT_SECONDS", "90"))
         )
-        
-        return result
-    
-    async def navigate_and_extract(self, task: str, url: str) -> BrowserResult:
-        """Multi-step navigation and extraction using fallback."""
-        logger.info(f"Fallback: Navigating and extracting - {task}")
-        
+        self.headless = self._parse_bool(
+            self.config.get("headless", os.getenv("PLAYWRIGHT_HEADLESS", "true"))
+        )
+
+    async def initialize(self) -> bool:
+        """Validate imports and provider configuration for browser-use."""
         try:
-            # Better at multi-step workflows
-            
-            open_result = await self.open_page(url)
-            if open_result.status != "success":
-                return open_result
-            
-            extract_result = await self.extract_page(url)
-            
-            result = BrowserResult(
-                status="success",
+            self._validate_runtime()
+            logger.info("browser-use fallback service initialized")
+            return True
+        except Exception as exc:
+            logger.error(f"Failed to initialize browser-use fallback: {exc}")
+            return False
+
+    async def web_search(self, query: str, max_results: int = 5) -> BrowserResult:
+        """Use browser-use to search Google and summarize the top results."""
+        logger.info(f"Fallback: web_search '{query}'")
+        task = (
+            f"Open Google search for '{query}'. Collect up to {max_results} organic results. "
+            "Return a concise plain-text list. Each item must include title, URL, and a short snippet."
+        )
+        return await self._run_task(task, reason="Fallback used for complex search")
+
+    async def open_page(self, url: str) -> BrowserResult:
+        """Use browser-use to open a page and report final location metadata."""
+        logger.info(f"Fallback: open_page {url}")
+        task = (
+            f"Open {url}. Do not browse elsewhere unless redirected. "
+            "Return the page title and final URL in plain text."
+        )
+        return await self._run_task(task, reason="Fallback used for complex navigation", url=url)
+
+    async def extract_page(self, url: Optional[str] = None) -> BrowserResult:
+        """Use browser-use to extract visible content from a page."""
+        logger.info(f"Fallback: extract_page {url or '[current page]'}")
+        task = (
+            f"Open {url}. Extract the main visible page content in plain text and summarize the page."
+            if url
+            else "Extract the current page content in plain text and summarize the page."
+        )
+        return await self._run_task(
+            task,
+            reason="Fallback used for dynamic content extraction",
+            url=url,
+        )
+
+    async def read_top_results(self, query: str, max_results: int = 3) -> BrowserResult:
+        """Use browser-use to search and summarize multiple top results."""
+        logger.info(f"Fallback: read_top_results '{query}' max={max_results}")
+        task = (
+            f"Search Google for '{query}'. Open the top {max_results} useful results and summarize the key findings. "
+            "Return a concise multi-source summary with source URLs."
+        )
+        return await self._run_task(task, reason="Fallback used for multi-page reading")
+
+    async def navigate_and_extract(self, task: str, url: str) -> BrowserResult:
+        """Use browser-use for task-oriented browsing."""
+        logger.info(f"Fallback: navigate_and_extract '{task}' -> {url}")
+        prompt = (
+            f"Start at {url}. Complete this task: {task}. "
+            "Return the final answer, include important supporting details, and list the URLs visited."
+        )
+        return await self._run_task(prompt, reason="Fallback used for multi-step workflow", url=url)
+
+    async def close(self):
+        """No-op because browser-use runs per request."""
+        logger.info("Closing browser-use fallback service")
+
+    def check_ready(self) -> bool:
+        """Synchronous readiness check for health probes."""
+        try:
+            self._validate_runtime()
+            return True
+        except Exception:
+            return False
+
+    def _validate_runtime(self):
+        self._load_browser_use_dependencies()
+        missing = [
+            name
+            for name, value in {
+                "BROWSER_USE_API_KEY": self.api_key,
+                "BROWSER_USE_BASE_URL": self.base_url,
+                "BROWSER_USE_MODEL": self.model,
+            }.items()
+            if not value
+        ]
+        if missing:
+            raise RuntimeError("Missing browser-use configuration: " + ", ".join(missing))
+
+    def _load_browser_use_dependencies(self):
+        try:
+            from browser_use import Agent, Browser, BrowserConfig
+            from langchain_openai import ChatOpenAI
+        except ImportError as exc:
+            raise RuntimeError(
+                "browser-use fallback requires 'browser-use' and 'langchain-openai'. "
+                "Install dependencies from requirements.txt."
+            ) from exc
+        return Agent, Browser, BrowserConfig, ChatOpenAI
+
+    async def _run_task(self, task: str, reason: str, url: Optional[str] = None) -> BrowserResult:
+        try:
+            self._validate_runtime()
+            Agent, Browser, BrowserConfig, ChatOpenAI = self._load_browser_use_dependencies()
+            llm = ChatOpenAI(
+                model=self.model,
+                api_key=self.api_key,
+                base_url=self.base_url,
+                temperature=0,
+            )
+            browser = Browser(config=BrowserConfig(headless=self.headless))
+            try:
+                agent = Agent(task=task, llm=llm, browser=browser)
+                history = await asyncio.wait_for(
+                    agent.run(max_steps=self.max_steps),
+                    timeout=self.timeout_seconds,
+                )
+            finally:
+                close = getattr(browser, "close", None)
+                if close is not None:
+                    maybe_coro = close()
+                    if asyncio.iscoroutine(maybe_coro):
+                        await maybe_coro
+
+            content = self._extract_history_result(history)
+            visited_urls = self._extract_history_urls(history)
+            final_url = visited_urls[-1] if visited_urls else url
+            title = self._extract_title(content, final_url)
+            confidence = "high" if len(content) >= 400 else "medium"
+
+            return BrowserResult(
+                status="success" if content else "failed",
                 backend="better-browser-use",
-                title=extract_result.title or f"Task: {task}",
-                url=url,
-                summary=f"Completed: {task} (via fallback)",
-                content=extract_result.content,
-                confidence="medium",
+                title=title,
+                url=final_url,
+                summary=self._build_summary(content, title, task),
+                content=content or None,
+                key_points=self._extract_key_points(content),
+                confidence=confidence if content else "low",
+                error=None if content else "browser-use completed without returning output",
                 metadata=Metadata(
                     used_fallback=True,
-                    reason="Fallback used for multi-step workflow",
-                    visited_urls=[url],
-                    attempt_count=1
-                )
+                    reason=reason,
+                    visited_urls=visited_urls,
+                    attempt_count=1,
+                ),
             )
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Fallback navigate_and_extract failed: {e}")
+        except Exception as exc:
+            logger.error(f"Fallback execution failed: {exc}")
             return BrowserResult(
                 status="failed",
                 backend="better-browser-use",
-                error=str(e),
-                metadata=Metadata(used_fallback=True, attempt_count=1)
+                url=url,
+                error=str(exc),
+                confidence="low",
+                metadata=Metadata(
+                    used_fallback=True,
+                    reason=reason,
+                    visited_urls=[url] if url else [],
+                    attempt_count=1,
+                ),
             )
-    
-    async def close(self):
-        """Clean up resources."""
-        logger.info("Closing better-browser-use fallback service")
+
+    @staticmethod
+    def _parse_bool(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() not in {"0", "false", "no", "off"}
+
+    @staticmethod
+    def _extract_history_result(history: Any) -> str:
+        if history is None:
+            return ""
+
+        if hasattr(history, "final_result"):
+            final_result = history.final_result()
+            if isinstance(final_result, str):
+                return final_result.strip()
+            if final_result is not None:
+                return str(final_result).strip()
+
+        if hasattr(history, "result"):
+            result = history.result
+            if isinstance(result, str):
+                return result.strip()
+            if result is not None:
+                return str(result).strip()
+
+        return str(history).strip()
+
+    @staticmethod
+    def _extract_history_urls(history: Any) -> List[str]:
+        if history is None:
+            return []
+
+        if hasattr(history, "urls"):
+            try:
+                urls = history.urls()
+                if isinstance(urls, list):
+                    return [str(url) for url in urls if url]
+            except Exception:
+                pass
+
+        return []
+
+    @staticmethod
+    def _build_summary(content: str, title: Optional[str], fallback: str) -> str:
+        if content:
+            clipped = " ".join(content.split())[:220].strip()
+            return clipped if len(content) <= 220 else f"{clipped}..."
+        return title or fallback
+
+    @staticmethod
+    def _extract_key_points(content: str, limit: int = 5) -> List[str]:
+        if not content:
+            return []
+        lines = [line.strip("-• ").strip() for line in content.splitlines()]
+        structured = [line for line in lines if len(line) > 20]
+        if structured:
+            return structured[:limit]
+        sentences = [part.strip() for part in content.replace("?", ".").replace("!", ".").split(".")]
+        return [sentence for sentence in sentences if sentence][:limit]
+
+    @staticmethod
+    def _extract_title(content: str, fallback_url: Optional[str]) -> Optional[str]:
+        if not content:
+            return fallback_url
+        first_line = next((line.strip() for line in content.splitlines() if line.strip()), "")
+        return first_line[:120] if first_line else fallback_url

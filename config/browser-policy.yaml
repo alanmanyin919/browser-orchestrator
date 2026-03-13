@@ -1,16 +1,24 @@
 # Browser Routing Policy
-# Defines when to use primary vs fallback
+# Defines which backend is preferred for each tool family
 
 # Primary backend configuration
 primary:
-  name: "playwright-mcp"
-  timeout_seconds: 30
+  name: "better-browser-use"
+  model: "MiniMax-Text-01"
+  base_url: ""
+  api_key: ""
+  max_steps: 12
+  timeout_seconds: 90
   max_retries: 2
 
-# Fallback backend configuration
+# Secondary backend configuration
 fallback:
-  name: "better-browser-use"
-  timeout_seconds: 60
+  name: "playwright-mcp"
+  command: "npx"
+  args:
+    - "@playwright/mcp@latest"
+  headless: true
+  timeout_seconds: 45
   max_retries: 1
 
 # Fallback triggers - when to use fallback

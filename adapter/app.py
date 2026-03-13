@@ -32,7 +32,7 @@ logger = get_logger("app")
 # Create FastAPI app
 app = FastAPI(
     title="Clawbot Browser Orchestrator",
-    description="Browser automation MCP stack with Playwright and fallback",
+    description="Browser automation MCP stack with browser-use as main access and Playwright for direct page access",
     version="1.0.0"
 )
 
@@ -85,7 +85,7 @@ async def web_search(request: SearchRequest) -> BrowserResult:
     Web Search Tool.
     
     Search the web and return top results with summaries.
-    Uses Playwright MCP by default, falls back to better-browser-use if needed.
+    Uses browser-use by default and tries Playwright if needed.
     """
     logger.info(f"Tool: web_search - '{request.query}'")
     router = get_router()

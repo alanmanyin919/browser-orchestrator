@@ -2,111 +2,38 @@
 
 ## Overview
 
-The router decides which backend to use based on:
-1. Success/failure of primary
-2. Quality of extracted content
-3. Stop conditions
+The router chooses a preferred backend by tool type, then tries the secondary backend if the preferred result is failed, thin, or low-confidence.
 
-## Default Behavior
+## Preferred Backend By Tool
 
-### Step 1: Try Primary First
+| Tool | Preferred backend | Secondary backend |
+|------|-------------------|------------------|
+| `web_search` | `browser-use` | Playwright MCP |
+| `read_top_results` | `browser-use` | Playwright MCP |
+| `navigate_and_extract` | `browser-use` | Playwright MCP |
+| `open_page` | Playwright MCP | `browser-use` |
+| `extract_page` | Playwright MCP | `browser-use` |
 
-**Always try Playwright MCP first.** It is:
-- Faster
-- More stable
-- Better for simple tasks
+## Result Quality Rules
 
-### Step 2: Evaluate Result
+The router tries the secondary backend when:
 
-After primary completes, check:
-
-| Condition | Action |
-|-----------|--------|
-| `status = "success"` with good content | Return result |
-| `status = "failed"` | Try fallback |
-| Content too short (<100 chars) | Try fallback |
-| `confidence = "low"` | Try fallback |
-
-### Step 3: Use Fallback (if needed)
-
-Fallback to better-browser-use when:
-- Primary extraction failed
-- Navigation got stuck
-- Page content is too dynamic
-- Multi-step workflow needed
-
-### Step 4: Check Stop Conditions
-
-**Never fallback for these** - return blocked/restricted:
-
-| Condition | Response |
-|-----------|----------|
-| CAPTCHA detected | `status: "blocked"` |
-| Login required | `status: "blocked"` |
-| Human verification | `status: "blocked"` |
-| 403/Forbidden | `status: "restricted"` |
-| Access denied | `status: "restricted"` |
-
-## Fallback Triggers
-
-The router triggers fallback when:
-
-1. **Extraction Failed** - Primary couldn't extract meaningful content
-2. **Navigation Stuck** - Page didn't load or got stuck
-3. **Dynamic Content** - Content requires JavaScript execution beyond primary's capability
-4. **Multi-step** - Task requires multiple page interactions
+- `status = "failed"`
+- `confidence = "low"`
+- `navigate_and_extract` cannot confirm the task outcome
+- extracted content is missing
+- extracted content is too thin to be useful
 
 ## Stop Conditions
 
-These conditions cause immediate return with blocked/restricted status:
+The router returns blocked or restricted immediately for:
 
-- **CAPTCHA** - reCAPTCHA, hCaptcha, etc.
-- **Login Wall** - Sign in required
-- **Human Verification** - "Verify you're human"
-- **Access Denied** - 403 Forbidden, blocked IP
-- **Rate Limited** - Too many requests
+- CAPTCHA or human-verification pages
+- login walls
+- 403 / forbidden / access denied pages
 
-## Configuration
+## Practical Intent
 
-Edit `config/browser-policy.yaml` to customize:
-
-```yaml
-primary:
-  timeout_seconds: 30
-  max_retries: 2
-
-fallback:
-  timeout_seconds: 60
-  max_retries: 1
-
-fallback_triggers:
-  - type: "extraction_failed"
-  - type: "dynamic_content"
-
-stop_conditions:
-  - type: "captcha"
-    action: "blocked"
-  - type: "login_required"
-    action: "blocked"
-```
-
-## Code Flow
-
-```
-Request → Primary.execute()
-           │
-           ▼
-      Success? ──No──→ Check stop conditions
-        │                   │
-       Yes                  ▼
-        │            Return blocked/restricted
-        │
-        ▼
-   Good content? ──No──→ Fallback.execute()
-        │                     │
-       Yes                    ▼
-        │              Check stop conditions
-        │                     │
-        ▼                     ▼
-   Return result       Return result
-```
+- Use `browser-use` as the main access layer for research and multi-step browsing.
+- Use Playwright for direct page opening and deterministic extraction.
+- Preserve the same public API regardless of which backend answered.

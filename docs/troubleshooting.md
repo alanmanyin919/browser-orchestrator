@@ -2,36 +2,33 @@
 
 ## Common Issues
 
-### 1. Primary service won't start
+### 1. Main browser-use backend won't start
+
+**Symptom**: `browser-use` connection or model setup fails
+
+**Solutions**:
+```bash
+# Check model settings
+echo "$BROWSER_USE_MODEL"
+echo "$BROWSER_USE_BASE_URL"
+
+# Check provider credentials
+test -n "$BROWSER_USE_API_KEY" && echo "API key set" || echo "API key missing"
+```
+
+### 2. Playwright backend unavailable
 
 **Symptom**: Playwright MCP connection fails
 
 **Solutions**:
 ```bash
-# Check Playwright is installed
-playwright --version
+# Check Node and npx
+node --version
+npx --version
 
-# Reinstall browsers
-playwright install chromium
-
-# Install system dependencies
-playwright install-deps
-```
-
-### 2. Fallback service unavailable
-
-**Symptom**: Better-browser-use not responding
-
-**Solutions**:
-```bash
-# Check if installed
-pip show browser-use
-
-# Install or upgrade
-pip install browser-use --upgrade
-
-# Check it's running
-curl http://localhost:8000/health
+# Check configured command
+echo "$PLAYWRIGHT_MCP_COMMAND"
+echo "$PLAYWRIGHT_MCP_ARGS"
 ```
 
 ### 3. Port already in use
@@ -44,7 +41,7 @@ curl http://localhost:8000/health
 lsof -i :3101
 
 # Kill it or use different port
-MCP_PORT=3102 python adapter/app.py
+MCP_PORT=3102 python3 adapter/app.py
 ```
 
 ### 4. Slow performance
@@ -56,6 +53,7 @@ MCP_PORT=3102 python adapter/app.py
 - Increase timeout in config
 - Use headless mode (default)
 - Close browser tabs between uses
+- Reduce `BROWSER_USE_MAX_STEPS` if browser-use runs are too long
 
 ### 5. CAPTCHA/blocks
 
@@ -73,7 +71,7 @@ MCP_PORT=3102 python adapter/app.py
 Enable debug logging:
 
 ```bash
-LOG_LEVEL=DEBUG python adapter/app.py
+LOG_LEVEL=DEBUG python3 adapter/app.py
 ```
 
 ## Health Check

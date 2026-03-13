@@ -1,6 +1,6 @@
 """
 Normalized data schemas for browser orchestrator.
-Both primary and fallback backends return data in this standard format.
+Both browser-use and Playwright return data in this standard format.
 """
 
 from typing import List, Optional, Literal
@@ -19,7 +19,7 @@ class BrowserResult(BaseModel):
     """
     Standardized result format returned by all browser tools.
     
-    This schema ensures both Playwright MCP and better-browser-use
+    This schema ensures both Playwright MCP and browser-use
     return consistent output that Clawbot can process uniformly.
     """
     status: Literal["success", "failed", "blocked", "restricted"] = "success"

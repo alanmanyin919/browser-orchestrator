@@ -1,14 +1,8 @@
 """
-Browser Router - Decides when to use primary vs fallback.
-
-This is the brain of the orchestrator. It:
-1. Tries primary first
-2. Checks if fallback is needed
-3. Returns normalized results
+Browser Router - decides which backend to use per tool.
 """
 
-import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 import yaml
 from pathlib import Path
 
@@ -21,15 +15,7 @@ logger = get_logger("router")
 
 
 class BrowserRouter:
-    """
-    Routes browser requests to primary or fallback backends.
-    
-    Flow:
-    1. Try primary (Playwright MCP)
-    2. Check result against fallback policy
-    3. If fallback needed, use better-browser-use
-    4. Return normalized output
-    """
+    """Routes browser requests between browser-use and Playwright."""
     
     def __init__(self, config_path: str = "config/browser-policy.yaml"):
         # Load routing policy
@@ -40,13 +26,15 @@ class BrowserRouter:
         else:
             self.policy = self._default_policy()
         
-        # Initialize services
-        self.primary = PlaywrightPrimaryService()
-        self.fallback = BrowserUseFallbackService()
+        # Main backend is browser-use. Secondary backend is Playwright.
+        self.primary = BrowserUseFallbackService(self.policy.get("primary", {}))
+        self.fallback = PlaywrightPrimaryService(self.policy.get("fallback", {}))
         
         # Config
         self.max_retries = self.policy.get("primary", {}).get("max_retries", 2)
         self.fallback_enabled = True
+        self.primary_available = False
+        self.fallback_available = False
         
         self._initialized = False
     
@@ -54,13 +42,13 @@ class BrowserRouter:
         """Default routing policy."""
         return {
             "primary": {
-                "name": "playwright-mcp",
-                "timeout_seconds": 30,
+                "name": "better-browser-use",
+                "timeout_seconds": 90,
                 "max_retries": 2
             },
             "fallback": {
-                "name": "better-browser-use",
-                "timeout_seconds": 60,
+                "name": "playwright-mcp",
+                "timeout_seconds": 45,
                 "max_retries": 1
             },
             "fallback_triggers": [
@@ -82,18 +70,27 @@ class BrowserRouter:
         
         logger.info("Initializing browser router...")
         
-        # Initialize primary
+        # Initialize main backend (browser-use)
         primary_ok = await self.primary.initialize()
+        self.primary_available = primary_ok
         logger.info(f"Primary backend: {'OK' if primary_ok else 'FAILED'}")
         
-        # Initialize fallback
+        # Initialize secondary backend (Playwright)
         fallback_ok = await self.fallback.initialize()
+        self.fallback_available = fallback_ok
+        self.fallback_enabled = fallback_ok
         logger.info(f"Fallback backend: {'OK' if fallback_ok else 'FAILED'}")
         
         self._initialized = True
         logger.info("Browser router initialized")
     
-    def _should_use_fallback(self, result: BrowserResult, reason: str = "") -> bool:
+    def _preferred_backend(self, tool_name: str) -> Tuple[Any, Any]:
+        """Return preferred and secondary backends for a tool."""
+        if tool_name in {"open_page", "extract_page"}:
+            return self.fallback, self.primary
+        return self.primary, self.fallback
+
+    def _should_use_secondary(self, result: BrowserResult, tool_name: str = "") -> bool:
         """
         Determine if fallback should be used based on result.
         
@@ -107,21 +104,46 @@ class BrowserRouter:
         
         # Check for failure
         if result.status == "failed":
-            logger.info(f"Fallback trigger: Primary failed - {result.error}")
+            logger.info(f"Secondary trigger: preferred backend failed - {result.error}")
             return True
         
+        if tool_name == "navigate_and_extract" and result.confidence != "high":
+            logger.info("Secondary trigger: navigate_and_extract returned unresolved or low confidence result")
+            return True
+
         # Check for incomplete content
-        if result.status == "success" and result.content:
-            if len(result.content) < 100 and "placeholder" in result.content.lower():
-                logger.info("Fallback trigger: Incomplete content detected")
+        if result.status == "success":
+            content = (result.content or "").strip()
+            if content and len(content) < 200:
+                logger.info("Secondary trigger: Thin content detected")
+                return True
+            if not content and tool_name in {"extract_page", "read_top_results"}:
+                logger.info("Secondary trigger: Missing extracted content")
                 return True
         
         # Check for low confidence
         if result.confidence == "low":
-            logger.info("Fallback trigger: Low confidence result")
+            logger.info("Secondary trigger: Low confidence result")
             return True
         
         return False
+
+    async def _run_with_routing(self, tool_name: str, *args) -> BrowserResult:
+        """Run a tool on the preferred backend, then try the secondary backend if needed."""
+        await self.initialize()
+        preferred, secondary = self._preferred_backend(tool_name)
+
+        result = await getattr(preferred, tool_name)(*args)
+        result = self._check_stop_conditions(result)
+        if result.status in ["blocked", "restricted"]:
+            return result
+
+        if self._should_use_secondary(result, tool_name):
+            logger.info("Router: Trying secondary backend")
+            result = await getattr(secondary, tool_name)(*args)
+            result = self._check_stop_conditions(result)
+
+        return result
     
     def _check_stop_conditions(self, result: BrowserResult) -> BrowserResult:
         """
@@ -167,102 +189,29 @@ class BrowserRouter:
         return result
     
     async def web_search(self, query: str, max_results: int = 5) -> BrowserResult:
-        """Web search with automatic fallback."""
-        await self.initialize()
-        
+        """Web search with browser-use preferred."""
         logger.info(f"Router: web_search for '{query}'")
-        
-        # Try primary first
-        result = await self.primary.web_search(query, max_results)
-        
-        # Check stop conditions
-        result = self._check_stop_conditions(result)
-        if result.status in ["blocked", "restricted"]:
-            return result
-        
-        # Check if fallback needed
-        if self._should_use_fallback(result):
-            logger.info("Router: Falling back to better-browser-use")
-            result = await self.fallback.web_search(query, max_results)
-            result = self._check_stop_conditions(result)
-        
-        return result
+        return await self._run_with_routing("web_search", query, max_results)
     
     async def open_page(self, url: str) -> BrowserResult:
-        """Open a page with automatic fallback."""
-        await self.initialize()
-        
+        """Open a page with Playwright preferred."""
         logger.info(f"Router: open_page {url}")
-        
-        result = await self.primary.open_page(url)
-        
-        result = self._check_stop_conditions(result)
-        if result.status in ["blocked", "restricted"]:
-            return result
-        
-        if self._should_use_fallback(result):
-            logger.info("Router: Falling back")
-            result = await self.fallback.open_page(url)
-            result = self._check_stop_conditions(result)
-        
-        return result
+        return await self._run_with_routing("open_page", url)
     
     async def extract_page(self, url: Optional[str] = None) -> BrowserResult:
-        """Extract page content with automatic fallback."""
-        await self.initialize()
-        
-        logger.info(f"Router: extract_page")
-        
-        result = await self.primary.extract_page(url)
-        
-        result = self._check_stop_conditions(result)
-        if result.status in ["blocked", "restricted"]:
-            return result
-        
-        if self._should_use_fallback(result):
-            logger.info("Router: Falling back")
-            result = await self.fallback.extract_page(url)
-            result = self._check_stop_conditions(result)
-        
-        return result
+        """Extract page content with Playwright preferred."""
+        logger.info("Router: extract_page")
+        return await self._run_with_routing("extract_page", url)
     
     async def read_top_results(self, query: str, max_results: int = 3) -> BrowserResult:
-        """Read top results with automatic fallback."""
-        await self.initialize()
-        
+        """Read top results with browser-use preferred."""
         logger.info(f"Router: read_top_results '{query}' (max={max_results})")
-        
-        result = await self.primary.read_top_results(query, max_results)
-        
-        result = self._check_stop_conditions(result)
-        if result.status in ["blocked", "restricted"]:
-            return result
-        
-        if self._should_use_fallback(result):
-            logger.info("Router: Falling back")
-            result = await self.fallback.read_top_results(query, max_results)
-            result = self._check_stop_conditions(result)
-        
-        return result
+        return await self._run_with_routing("read_top_results", query, max_results)
     
     async def navigate_and_extract(self, task: str, url: str) -> BrowserResult:
-        """Navigate and extract with automatic fallback."""
-        await self.initialize()
-        
+        """Navigate and extract with browser-use preferred."""
         logger.info(f"Router: navigate_and_extract - {task}")
-        
-        result = await self.primary.navigate_and_extract(task, url)
-        
-        result = self._check_stop_conditions(result)
-        if result.status in ["blocked", "restricted"]:
-            return result
-        
-        if self._should_use_fallback(result):
-            logger.info("Router: Falling back")
-            result = await self.fallback.navigate_and_extract(task, url)
-            result = self._check_stop_conditions(result)
-        
-        return result
+        return await self._run_with_routing("navigate_and_extract", task, url)
     
     async def close(self):
         """Clean up resources."""

@@ -1,33 +1,33 @@
-# Fallback Tool Usage - better-browser-use
+# Secondary Tool Usage - Playwright MCP
 
 ## When It's Used
 
-The router automatically uses fallback when:
+The router prefers Playwright for direct page-access tasks and also uses it as the secondary backend when:
 
-1. **Primary extraction failed** - Couldn't get content
-2. **Navigation got stuck** - Page didn't load properly
-3. **Content is too dynamic** - Heavy JavaScript
-4. **Multi-step workflows** - Complex interactions needed
+1. **Direct page open** - A single URL just needs to be loaded
+2. **Direct extraction** - A page needs deterministic text extraction
+3. **Main backend failed** - `browser-use` could not complete the task
+4. **Main result is weak** - Content is too thin or confidence is low
 
 ## You Don't Choose It Directly
 
-**The router decides.** Just use the normal tools and the system will fallback automatically if needed.
+**The router decides.** Just use the normal tools and the system will pick Playwright when direct page access is the better fit.
 
 ## When It Might Be Used
 
-- Single-page applications
-- Sites with complex interactions
-- Pages that require scrolling/clicks
-- Sites with lazy-loaded content
+- Direct URL loading
+- Single-page extraction
+- Fast page metadata retrieval
+- Secondary fallback when `browser-use` underperforms
 
 ## What It Returns
 
-Same normalized format as primary:
+Same normalized format as the main backend:
 
 ```json
 {
   "status": "success",
-  "backend": "better-browser-use",
+  "backend": "playwright-mcp",
   "title": "Page Title",
   "url": "https://example.com",
   "summary": "Short summary",
@@ -35,22 +35,22 @@ Same normalized format as primary:
   "key_points": ["Point 1", "Point 2"],
   "confidence": "medium",
   "metadata": {
-    "used_fallback": true,
-    "reason": "Dynamic content detected"
+    "used_fallback": false,
+    "reason": null
   }
 }
 ```
 
 ## Note on Confidence
 
-Fallback results typically have **medium confidence** because:
-- Slower than primary
-- More resource-intensive
-- Still reliable, but less optimized
+Playwright results typically have **high confidence** for direct page work because:
+- deterministic page access is narrower in scope
+- extraction is less agentic
+- output is usually easier to validate
 
 ## Stop Conditions Apply
 
-Even fallback won't proceed for:
+Even Playwright won't proceed for:
 - CAPTCHA challenges
 - Login walls
 - Access restrictions

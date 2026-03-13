@@ -1,7 +1,7 @@
 #!/bin/bash
-# Start Better Browser Use Fallback Service
+# Configure browser-use main service
 
-echo "Starting Better Browser Use Fallback Service..."
+echo "Configuring browser-use main service..."
 
 # Check if browser-use is installed
 if ! pip show browser-use &> /dev/null; then
@@ -9,15 +9,19 @@ if ! pip show browser-use &> /dev/null; then
 fi
 
 # Set environment
-export BROWSER_USE_API_URL=${BROWSER_USE_API_URL:-http://localhost:8000}
+export BROWSER_USE_MODEL=${BROWSER_USE_MODEL:-MiniMax-Text-01}
+export BROWSER_USE_MAX_STEPS=${BROWSER_USE_MAX_STEPS:-12}
+export BROWSER_USE_TIMEOUT_SECONDS=${BROWSER_USE_TIMEOUT_SECONDS:-90}
 export FALLBACK_MODE=true
 
-echo "Better Browser Use URL: $BROWSER_USE_API_URL"
-echo "Fallback service ready"
+echo "browser-use model: $BROWSER_USE_MODEL"
+echo "browser-use max steps: $BROWSER_USE_MAX_STEPS"
+echo "browser-use timeout: $BROWSER_USE_TIMEOUT_SECONDS"
+echo "Main browser-use configuration ready"
 
-# In production, would start actual browser-use server here
-# For now, this is a placeholder
+# browser-use runs in-process inside the app.
+# This script exists only as a configuration helper.
 
 # Keep script running
-echo "Fallback service running. Press Ctrl+C to stop."
+echo "browser-use helper running. Press Ctrl+C to stop."
 tail -f /dev/null

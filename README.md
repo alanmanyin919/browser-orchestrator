@@ -1,14 +1,15 @@
 # Clawbot Browser Orchestrator
 
-Browser orchestration layer for Clawbot/OpenClaw. This service exposes a single MCP-style HTTP surface and routes browser tasks between a primary Playwright MCP backend and a fallback `browser-use` backend.[1][2]
+Browser orchestration layer for Clawbot/OpenClaw. This service exposes a single MCP-style HTTP surface and routes browser tasks between a main `browser-use` backend and a secondary Playwright MCP backend for direct page access.[1][2]
 
 ## Status
 
-This repository is currently an orchestration scaffold:
+This repository now includes concrete backend integrations, but they depend on local runtime configuration:
 
 - The FastAPI service, router, schemas, config, prompts, and tests are present.
-- The backend service wrappers in [adapter/services/playwright_primary.py](adapter/services/playwright_primary.py) and [adapter/services/browser_use_fallback.py](adapter/services/browser_use_fallback.py) still return placeholder data rather than calling live upstream APIs.
-- The shell scripts start the orchestrator and placeholder primary/fallback processes, but do not yet boot a real Playwright MCP server or a real `browser-use` worker.
+- The main backend runs `browser-use` in-process with an OpenAI-compatible model configuration.
+- The secondary backend starts a local Playwright MCP process over stdio per request.
+- The shell scripts are still lightweight helpers; real execution now depends on the environment variables documented below.
 
 If you use this repo today, treat it as a documented starter project rather than a production-ready browser automation gateway.
 
@@ -20,15 +21,15 @@ The orchestrator gives Clawbot a consistent interface for browser actions:
 Clawbot / LLM
   -> Browser Orchestrator API
   -> Router
-     -> Primary: Playwright MCP
-     -> Fallback: browser-use
+     -> Main: browser-use
+     -> Secondary: Playwright MCP
   -> Normalized BrowserResult
 ```
 
 Core goals:
 
-- Prefer a stable default backend for ordinary browsing tasks.
-- Fall back to a more agentic browser system when the primary result is incomplete or fails.
+- Prefer an agentic browser backend for search, research, and multi-step tasks.
+- Use Playwright for deterministic single-page access and extraction.
 - Return a normalized result shape regardless of backend.
 - Keep routing rules, stop conditions, and prompts in repo-managed config/docs.
 
@@ -66,8 +67,8 @@ clawbot-browser-orchestrator/
 
 - Python 3.11+
 - Node.js 18+
+- A `browser-use` runtime[2]
 - A Playwright MCP runtime[1]
-- A `browser-use` runtime if you want to implement the fallback backend[2]
 
 ### Install dependencies
 
@@ -75,10 +76,16 @@ clawbot-browser-orchestrator/
 pip install -r requirements.txt
 ```
 
+### Configure environment
+
+```bash
+cp .env.example .env
+```
+
 ### Run the orchestrator
 
 ```bash
-python adapter/app.py
+python3 adapter/app.py
 ```
 
 Default port: `3101`
@@ -92,11 +99,11 @@ Default port: `3101`
 ./scripts/healthcheck.sh
 ```
 
-Important: the `start_primary.sh` and `start_fallback.sh` scripts are placeholders in the current repo. They validate local tooling and hold a process open, but they do not yet launch the real upstream services.
+Important: the app now runs `browser-use` as the main execution path for search and workflow tasks, and starts Playwright MCP internally for direct page access.
 
 ## Suggested Upstream Integration Targets
 
-### Primary backend: Playwright MCP
+### Secondary backend: Playwright MCP
 
 The current docs in the upstream Playwright MCP repository show the standard MCP config using `npx @playwright/mcp@latest`.[1]
 
@@ -113,25 +120,32 @@ Example:
 }
 ```
 
-### Fallback backend: browser-use
+### Main backend: browser-use
 
 The upstream `browser-use` project documents Python 3.11+, installation via `uv add browser-use`, and optional browser installation with `uvx browser-use install`.[2]
 
-This repository currently depends on `browser-use` conceptually, but does not yet include the live adapter code needed to drive a real fallback session.
+This repository uses `browser-use` as the main access layer for search, research, and multi-step tasks.
 
 ## Configuration
 
 Main config files:
 
-- [config/browser-policy.yaml](config/browser-policy.yaml): primary/fallback names, timeouts, triggers, stop conditions
+- [config/browser-policy.yaml](config/browser-policy.yaml): main/secondary backend names, timeouts, triggers, stop conditions
 - [config/app-config.yaml](config/app-config.yaml): app-level settings
 - [config/mcp.json](config/mcp.json): MCP-related config stub
 
-Common runtime environment variables used by the scripts/app:
+Common runtime environment variables:
 
 - `MCP_PORT` defaults to `3101`
-- `PLAYWRIGHT_MCP_URL` defaults to `http://localhost:3100`
-- `BROWSER_USE_API_URL` defaults to `http://localhost:8000`
+- `PLAYWRIGHT_MCP_COMMAND` defaults to `npx`
+- `PLAYWRIGHT_MCP_ARGS` defaults to `@playwright/mcp@latest`
+- `PLAYWRIGHT_MCP_TIMEOUT_SECONDS` defaults to `45`
+- `PLAYWRIGHT_HEADLESS` defaults to `true`
+- `BROWSER_USE_MODEL` defaults to `MiniMax-Text-01`
+- `BROWSER_USE_API_KEY` must be set for the main browser-use backend
+- `BROWSER_USE_BASE_URL` must be set for the main browser-use backend
+- `BROWSER_USE_MAX_STEPS` defaults to `12`
+- `BROWSER_USE_TIMEOUT_SECONDS` defaults to `90`
 
 ## Documentation
 
@@ -144,11 +158,9 @@ Common runtime environment variables used by the scripts/app:
 
 To turn this scaffold into a working service:
 
-1. Replace the placeholder Playwright wrapper with real MCP transport calls.
-2. Replace the placeholder `browser-use` wrapper with a real agent/session integration.
-3. Add environment examples for local and production deployment.
-4. Add end-to-end tests against live upstream services.
-5. Decide whether the fallback target is the official `browser-use` package or a specific internal fork, then rename the code/docs consistently.
+1. Add end-to-end tests against live MiniMax-backed `browser-use` and Playwright MCP.
+2. Decide whether to keep the code name `better-browser-use` or rename the backend label to `browser-use` consistently.
+3. Refine per-tool routing rules if some direct-page tasks should always bypass `browser-use`.
 
 ## Citations
 

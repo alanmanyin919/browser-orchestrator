@@ -1,15 +1,15 @@
 {
   "name": "clawbot-browser-orchestrator",
   "version": "1.0.0",
-  "description": "Browser automation MCP stack with Playwright and fallback",
+  "description": "Browser automation MCP stack with browser-use as main access and Playwright for direct pages",
   "main": "adapter/app.py",
   "scripts": {
-    "start": "python adapter/app.py",
+    "start": "python3 adapter/app.py",
     "start:primary": "./scripts/start_primary.sh",
     "start:fallback": "./scripts/start_fallback.sh",
     "start:all": "./scripts/start_all.sh",
     "health": "./scripts/healthcheck.sh",
-    "test": "pytest tests/"
+    "test": "python3 -m pytest tests/"
   },
   "keywords": ["browser", "automation", "mcp", "playwright", "openclaw"],
   "author": "",

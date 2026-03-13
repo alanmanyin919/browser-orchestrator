@@ -3,40 +3,39 @@ Health check module for browser orchestrator.
 """
 
 import time
-from typing import Tuple
 from .schemas import HealthStatus
 from .logging_config import get_logger
+from .services.playwright_primary import PlaywrightPrimaryService
+from .services.browser_use_fallback import BrowserUseFallbackService
 
 logger = get_logger("health")
 
 
 class HealthChecker:
-    """Monitors health of primary and fallback backends."""
+    """Monitors health of the main browser-use backend and Playwright secondary backend."""
     
     def __init__(self):
         self.start_time = time.time()
         self.primary_available = False
         self.fallback_available = False
+        self.primary_service = BrowserUseFallbackService()
+        self.fallback_service = PlaywrightPrimaryService()
     
     async def check_primary(self) -> bool:
-        """Check if Playwright MCP is available."""
-        # TODO: Implement actual health check
-        # For now, return True if we can connect
+        """Check if browser-use is available."""
         try:
-            # Placeholder - would check actual service
-            self.primary_available = True
-            return True
+            self.primary_available = self.primary_service.check_ready()
+            return self.primary_available
         except Exception as e:
             logger.warning(f"Primary health check failed: {e}")
             self.primary_available = False
             return False
     
     async def check_fallback(self) -> bool:
-        """Check if better-browser-use is available."""
+        """Check if Playwright MCP is available."""
         try:
-            # Placeholder - would check actual service
-            self.fallback_available = True
-            return True
+            self.fallback_available = await self.fallback_service.initialize()
+            return self.fallback_available
         except Exception as e:
             logger.warning(f"Fallback health check failed: {e}")
             self.fallback_available = False

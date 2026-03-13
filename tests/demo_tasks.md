@@ -12,7 +12,7 @@ curl -X POST http://localhost:3101/tools/web_search \
   -d '{"query": "Python programming"}'
 ```
 
-Expected: JSON with search results, status "success", backend "playwright-mcp"
+Expected: JSON with search results, status "success", backend "better-browser-use"
 
 ---
 
@@ -26,7 +26,7 @@ curl -X POST http://localhost:3101/tools/open_page \
   -d '{"url": "https://www.python.org"}'
 ```
 
-Expected: JSON with page info, status "success"
+Expected: JSON with page info, status "success", usually backend "playwright-mcp"
 
 ---
 
@@ -112,7 +112,7 @@ Expected: JSON with status "blocked" or "restricted"
 
 ## Task 9: Test Fallback (Simulated)
 
-The router automatically uses fallback when primary fails.
+The router automatically tries the secondary backend when the preferred backend is weak or fails.
 
 ```bash
 curl -X POST http://localhost:3101/tools/extract_page \
@@ -121,8 +121,8 @@ curl -X POST http://localhost:3101/tools/extract_page \
 ```
 
 Check the "backend" field in response - could be either:
-- "playwright-mcp" (primary)
-- "better-browser-use" (fallback)
+- "better-browser-use" (main backend)
+- "playwright-mcp" (secondary backend)
 
 ---
 
@@ -130,8 +130,8 @@ Check the "backend" field in response - could be either:
 
 ```bash
 # Run pytest
-pytest tests/ -v
+python3 -m pytest tests/ -v
 
 # Or run manually
-python -m tests.demo_tasks
+python3 -m tests.demo_tasks
 ```

@@ -4,78 +4,49 @@
 
 The Browser Orchestrator provides a unified browser automation interface for Clawbot.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Clawbot / LLM                          │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   MCP Tool Interface                        │
-│   web_search | open_page | extract_page | read_top_results  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      Router Layer                            │
-│         (decides primary vs fallback)                       │
-└─────────────────────────────────────────────────────────────┘
-                              │
-              ┌───────────────┴───────────────┐
-              ▼                               ▼
-┌─────────────────────────┐     ┌─────────────────────────────┐
-│   Primary Backend       │     │   Fallback Backend          │
-│   ─────────────────     │     │   ──────────────────        │
-│   Playwright MCP       │     │   better-browser-use        │
-│                        │     │                              │
-│   - Stable             │     │   - Complex pages            │
-│   - Fast               │     │   - Multi-step workflows    │
-│   - Default            │     │   - Dynamic content          │
-└─────────────────────────┘     └─────────────────────────────┘
-              │                               │
-              └───────────────┬───────────────┘
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  Normalized Output                          │
-│   { status, backend, title, url, summary, content, ... }   │
-└─────────────────────────────────────────────────────────────┘
+```text
+Clawbot / LLM
+  -> MCP Tool Interface
+  -> Router Layer
+     -> Main backend: browser-use
+     -> Secondary backend: Playwright MCP
+  -> Normalized Output
 ```
 
-## Components
+## Backend Roles
 
-### Router (`adapter/router.py`)
-- Decides which backend to use
-- Implements fallback policy
-- Checks stop conditions (CAPTCHA, login, etc.)
-- Normalizes output from both backends
+### Main backend: `browser-use`
+- Default path for `web_search`
+- Default path for `read_top_results`
+- Default path for `navigate_and_extract`
+- Best fit for research and multi-step browsing
 
-### Primary Service (`adapter/services/playwright_primary.py`)
-- Playwright MCP integration
-- Default backend for all operations
-- Fast, stable browser automation
+### Secondary backend: Playwright MCP
+- Preferred path for `open_page`
+- Preferred path for `extract_page`
+- Best fit for deterministic single-page access
+- Used as the secondary backend when the main backend result is weak or unsuitable
 
-### Fallback Service (`adapter/services/browser_use_fallback.py`)
-- Better-browser-use integration
-- Used only when primary fails
-- Handles complex dynamic pages
+## Router Behavior
 
-### Schemas (`adapter/schemas.py`)
-- Standardized data models
-- Normalized result format
-- Health check models
+The router in [adapter/router.py](../adapter/router.py):
+
+- chooses the preferred backend based on tool type
+- checks result quality and stop conditions
+- retries the same tool on the secondary backend when needed
+- normalizes both backends into the same `BrowserResult` shape
 
 ## Data Flow
 
-1. **Request arrives** → Router receives MCP tool call
-2. **Try primary** → Playwright MCP attempts operation
-3. **Check result** → Router evaluates if fallback needed
-4. **Fallback if needed** → better-browser-use handles complex case
-5. **Check stop conditions** → CAPTCHA/login detection
-6. **Return normalized result** → Consistent output to caller
+1. Request arrives at the FastAPI app.
+2. Router selects the preferred backend for that tool.
+3. Preferred backend executes.
+4. Router checks for blocked/restricted conditions.
+5. If the result is thin, low-confidence, or failed, router tries the secondary backend.
+6. The final normalized result is returned to the caller.
 
 ## Configuration
 
-- `config/mcp.json` - MCP server configuration
-- `config/browser-policy.yaml` - Routing rules and policies
-- `config/app-config.yaml` - Application settings
-- `.env` - Environment variables
+- `config/browser-policy.yaml` controls backend settings and stop conditions
+- `config/app-config.yaml` controls app/logging settings
+- `.env` provides runtime credentials and backend parameters
