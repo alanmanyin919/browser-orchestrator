@@ -9,14 +9,18 @@ if ! pip show browser-use &> /dev/null; then
 fi
 
 # Set environment
-export BROWSER_USE_MODEL=${BROWSER_USE_MODEL:-MiniMax-Text-01}
+export LLM_PROVIDER=${LLM_PROVIDER:-minimax}
+export MINIMAX_MODEL=${MINIMAX_MODEL:-MiniMax-M2.5}
+export MINIMAX_BASE_URL=${MINIMAX_BASE_URL:-https://api.minimax.io/v1}
 export BROWSER_USE_MAX_STEPS=${BROWSER_USE_MAX_STEPS:-12}
-export BROWSER_USE_TIMEOUT_SECONDS=${BROWSER_USE_TIMEOUT_SECONDS:-90}
+export MINIMAX_TIMEOUT_SECONDS=${MINIMAX_TIMEOUT_SECONDS:-90}
 export FALLBACK_MODE=true
 
-echo "browser-use model: $BROWSER_USE_MODEL"
+echo "LLM provider: $LLM_PROVIDER"
+echo "MiniMax model: $MINIMAX_MODEL"
+echo "MiniMax base URL: $MINIMAX_BASE_URL"
 echo "browser-use max steps: $BROWSER_USE_MAX_STEPS"
-echo "browser-use timeout: $BROWSER_USE_TIMEOUT_SECONDS"
+echo "MiniMax timeout: $MINIMAX_TIMEOUT_SECONDS"
 echo "Main browser-use configuration ready"
 
 # browser-use runs in-process inside the app.

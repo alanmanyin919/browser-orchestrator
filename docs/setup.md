@@ -34,9 +34,9 @@ cp .env.example .env
 
 Required main backend configuration:
 
-- `BROWSER_USE_API_KEY`
-- `BROWSER_USE_BASE_URL`
-- `BROWSER_USE_MODEL`
+- `MINIMAX_API_KEY`
+- `MINIMAX_BASE_URL`
+- `MINIMAX_MODEL`
 
 The main `browser-use` path assumes an OpenAI-compatible endpoint, which can point at MiniMax.
 
@@ -98,11 +98,13 @@ The upstream `browser-use` project documents:
 
 This repository uses `browser-use` directly in-process as the main execution backend. The main controls are:
 
-- `BROWSER_USE_MODEL`
-- `BROWSER_USE_API_KEY`
-- `BROWSER_USE_BASE_URL`
+- `LLM_PROVIDER`
+- `MINIMAX_MODEL`
+- `MINIMAX_API_KEY`
+- `MINIMAX_BASE_URL`
+- `MINIMAX_TIMEOUT_SECONDS`
+- `MINIMAX_MAX_RETRIES`
 - `BROWSER_USE_MAX_STEPS`
-- `BROWSER_USE_TIMEOUT_SECONDS`
 
 ## 7. Verify the local service
 
@@ -119,11 +121,17 @@ Run tests:
 python3 -m pytest tests/
 ```
 
+Run the MiniMax wiring smoke check:
+
+```bash
+python3 scripts/smoke_minimax.py
+```
+
 ## 8. Recommended next steps
 
 After local setup:
 
-1. Verify your OpenAI-compatible `browser-use` endpoint accepts the configured model name.
+1. Verify MiniMax accepts the configured `MINIMAX_MODEL` and `MINIMAX_BASE_URL`.
 2. Verify the Playwright MCP runtime exposes the expected tools in your environment.
 3. Add live integration tests for both backends before production use.
 

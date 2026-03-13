@@ -141,11 +141,30 @@ Common runtime environment variables:
 - `PLAYWRIGHT_MCP_ARGS` defaults to `@playwright/mcp@latest`
 - `PLAYWRIGHT_MCP_TIMEOUT_SECONDS` defaults to `45`
 - `PLAYWRIGHT_HEADLESS` defaults to `true`
-- `BROWSER_USE_MODEL` defaults to `MiniMax-Text-01`
-- `BROWSER_USE_API_KEY` must be set for the main browser-use backend
-- `BROWSER_USE_BASE_URL` must be set for the main browser-use backend
+- `LLM_PROVIDER` defaults to `minimax`
+- `MINIMAX_API_KEY` must be set for the main browser-use backend
+- `MINIMAX_BASE_URL` defaults to `https://api.minimax.io/v1`
+- `MINIMAX_MODEL` defaults to `MiniMax-M2.5`
+- `MINIMAX_TIMEOUT_SECONDS` defaults to `90`
+- `MINIMAX_MAX_RETRIES` defaults to `2`
 - `BROWSER_USE_MAX_STEPS` defaults to `12`
-- `BROWSER_USE_TIMEOUT_SECONDS` defaults to `90`
+
+## MiniMax Provider Wiring
+
+The browser-use integration uses a small provider factory in `adapter/llm_factory.py` and constructs MiniMax through its OpenAI-compatible API. The project does not use browser-use cloud and does not monkey-patch `ChatOpenAI` objects.
+
+Quick start:
+
+```bash
+cp .env.example .env
+python3 adapter/app.py
+```
+
+Smoke-check the MiniMax wiring:
+
+```bash
+python3 scripts/smoke_minimax.py
+```
 
 ## Documentation
 

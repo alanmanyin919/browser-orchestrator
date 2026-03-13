@@ -4,8 +4,9 @@
 # Primary backend configuration
 primary:
   name: "better-browser-use"
-  model: "MiniMax-Text-01"
-  base_url: ""
+  provider: "minimax"
+  model: "MiniMax-M2.5"
+  base_url: "https://api.minimax.io/v1"
   api_key: ""
   max_steps: 12
   timeout_seconds: 90

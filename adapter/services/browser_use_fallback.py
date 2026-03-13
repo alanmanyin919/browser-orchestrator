@@ -11,6 +11,7 @@ import asyncio
 import os
 from typing import Any, Dict, List, Optional
 
+from ..llm_factory import LLMConfigurationError, create_llm, resolve_llm_settings
 from ..logging_config import get_logger
 from ..schemas import BrowserResult, Metadata
 
@@ -22,13 +23,15 @@ class BrowserUseFallbackService:
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
-        self.model = self.config.get("model", os.getenv("BROWSER_USE_MODEL", "MiniMax-Text-01"))
-        self.api_key = self.config.get("api_key", os.getenv("BROWSER_USE_API_KEY"))
-        self.base_url = self.config.get("base_url", os.getenv("BROWSER_USE_BASE_URL"))
+        self.provider = self.config.get("provider", os.getenv("LLM_PROVIDER", "minimax"))
+        self.model = self.config.get("model", os.getenv("MINIMAX_MODEL", "MiniMax-M2.5"))
+        self.api_key = self.config.get("api_key", os.getenv("MINIMAX_API_KEY"))
+        self.base_url = self.config.get("base_url", os.getenv("MINIMAX_BASE_URL", "https://api.minimax.io/v1"))
         self.max_steps = int(self.config.get("max_steps", os.getenv("BROWSER_USE_MAX_STEPS", "12")))
         self.timeout_seconds = int(
-            self.config.get("timeout_seconds", os.getenv("BROWSER_USE_TIMEOUT_SECONDS", "90"))
+            self.config.get("timeout_seconds", os.getenv("MINIMAX_TIMEOUT_SECONDS", "90"))
         )
+        self.max_retries = int(self.config.get("max_retries", os.getenv("MINIMAX_MAX_RETRIES", "2")))
         self.headless = self._parse_bool(
             self.config.get("headless", os.getenv("PLAYWRIGHT_HEADLESS", "true"))
         )
@@ -107,38 +110,40 @@ class BrowserUseFallbackService:
 
     def _validate_runtime(self):
         self._load_browser_use_dependencies()
-        missing = [
-            name
-            for name, value in {
-                "BROWSER_USE_API_KEY": self.api_key,
-                "BROWSER_USE_BASE_URL": self.base_url,
-                "BROWSER_USE_MODEL": self.model,
-            }.items()
-            if not value
-        ]
-        if missing:
-            raise RuntimeError("Missing browser-use configuration: " + ", ".join(missing))
+        resolve_llm_settings(
+            config={
+                "provider": self.provider,
+                "model": self.model,
+                "api_key": self.api_key,
+                "base_url": self.base_url,
+                "timeout_seconds": self.timeout_seconds,
+                "max_retries": self.max_retries,
+            }
+        )
 
     def _load_browser_use_dependencies(self):
         try:
             from browser_use import Agent, Browser, BrowserConfig
-            from langchain_openai import ChatOpenAI
         except ImportError as exc:
             raise RuntimeError(
-                "browser-use fallback requires 'browser-use' and 'langchain-openai'. "
+                "browser-use fallback requires 'browser-use'. "
                 "Install dependencies from requirements.txt."
             ) from exc
-        return Agent, Browser, BrowserConfig, ChatOpenAI
+        return Agent, Browser, BrowserConfig
 
     async def _run_task(self, task: str, reason: str, url: Optional[str] = None) -> BrowserResult:
         try:
             self._validate_runtime()
-            Agent, Browser, BrowserConfig, ChatOpenAI = self._load_browser_use_dependencies()
-            llm = ChatOpenAI(
-                model=self.model,
-                api_key=self.api_key,
-                base_url=self.base_url,
-                temperature=0,
+            Agent, Browser, BrowserConfig = self._load_browser_use_dependencies()
+            llm = create_llm(
+                provider=self.provider,
+                config={
+                    "model": self.model,
+                    "api_key": self.api_key,
+                    "base_url": self.base_url,
+                    "timeout_seconds": self.timeout_seconds,
+                    "max_retries": self.max_retries,
+                },
             )
             browser = Browser(config=BrowserConfig(headless=self.headless))
             try:
@@ -177,7 +182,7 @@ class BrowserUseFallbackService:
                     attempt_count=1,
                 ),
             )
-        except Exception as exc:
+        except (LLMConfigurationError, Exception) as exc:
             logger.error(f"Fallback execution failed: {exc}")
             return BrowserResult(
                 status="failed",

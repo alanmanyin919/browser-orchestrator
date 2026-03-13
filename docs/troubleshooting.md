@@ -9,11 +9,11 @@
 **Solutions**:
 ```bash
 # Check model settings
-echo "$BROWSER_USE_MODEL"
-echo "$BROWSER_USE_BASE_URL"
+echo "$MINIMAX_MODEL"
+echo "$MINIMAX_BASE_URL"
 
 # Check provider credentials
-test -n "$BROWSER_USE_API_KEY" && echo "API key set" || echo "API key missing"
+test -n "$MINIMAX_API_KEY" && echo "API key set" || echo "API key missing"
 ```
 
 ### 2. Playwright backend unavailable
@@ -54,6 +54,7 @@ MCP_PORT=3102 python3 adapter/app.py
 - Use headless mode (default)
 - Close browser tabs between uses
 - Reduce `BROWSER_USE_MAX_STEPS` if browser-use runs are too long
+- Increase `MINIMAX_TIMEOUT_SECONDS` if the provider is timing out
 
 ### 5. CAPTCHA/blocks
 
