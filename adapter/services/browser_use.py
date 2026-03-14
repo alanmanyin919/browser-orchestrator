@@ -131,18 +131,18 @@ class BrowserUseService:
 
     def _load_browser_use_dependencies(self):
         try:
-            from browser_use import Agent, Browser, BrowserConfig
+            from browser_use import Agent, Browser
         except ImportError as exc:
             raise RuntimeError(
-                "browser-use fallback requires 'browser-use'. "
-                "Install dependencies from requirements.txt."
+                "browser-use requires 'browser-use' package. "
+                "Install: pip install browser-use"
             ) from exc
-        return Agent, Browser, BrowserConfig
+        return Agent, Browser
 
     async def _run_task(self, task: str, reason: str, url: Optional[str] = None) -> BrowserResult:
         try:
             self._validate_runtime()
-            Agent, Browser, BrowserConfig = self._load_browser_use_dependencies()
+            Agent, Browser = self._load_browser_use_dependencies()
             llm = create_llm(
                 provider=self.provider,
                 config={
@@ -153,14 +153,16 @@ class BrowserUseService:
                     "max_retries": self.max_retries,
                 },
             )
-            browser = Browser(
-                config=BrowserConfig(
-                    headless=self.headless,
-                    cdp_url=self.cdp_url if self.use_external_browser else None
-                )
-            )
+            # Use CDP URL if external browser is enabled
+            browser_kwargs = {}
+            if self.use_external_browser:
+                browser_kwargs["cdp_url"] = self.cdp_url
+            
+            browser = Browser(**browser_kwargs) if browser_kwargs else Browser()
             try:
-                agent = Agent(task=task, llm=llm, browser=browser)
+                # Disable thinking to prevent JSON parsing issues with MiniMax
+                # Use flash_mode for maximum compatibility
+                agent = Agent(task=task, llm=llm, browser=browser, use_thinking=False, flash_mode=True)
                 history = await asyncio.wait_for(
                     agent.run(max_steps=self.max_steps),
                     timeout=self.timeout_seconds,

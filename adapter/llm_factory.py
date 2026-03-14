@@ -106,7 +106,8 @@ def create_llm(provider: str = "minimax", config: Optional[Dict[str, Any]] = Non
     """Create a browser-use compatible chat model instance."""
     settings = resolve_llm_settings(config=config, provider=provider)
     ChatOpenAI = _load_chat_openai()
-    return ChatOpenAI(
+    
+    base_llm = ChatOpenAI(
         model=settings.model,
         api_key=settings.api_key,
         base_url=settings.base_url,
@@ -114,6 +115,36 @@ def create_llm(provider: str = "minimax", config: Optional[Dict[str, Any]] = Non
         max_retries=settings.max_retries,
         temperature=0,
     )
+    
+    # Wrap to strip thinking tags for MiniMax compatibility
+    return _StripThinkingWrapper(base_llm)
+
+
+class _StripThinkingWrapper:
+    """Wrapper that strips <think> tags from LLM responses."""
+    
+    def __init__(self, base_llm):
+        self._base = base_llm
+    
+    async def ainvoke(self, *args, **kwargs):
+        response = await self._base.ainvoke(*args, **kwargs)
+        # Strip thinking tags from response
+        if hasattr(response, 'content') and response.content:
+            response.content = _strip_thinking(response.content)
+        return response
+    
+    def __getattr__(self, name):
+        return getattr(self._base, name)
+
+
+def _strip_thinking(text: str) -> str:
+    """Strip <think>...</think> tags from text."""
+    import re
+    # Remove <think>...</think> blocks
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    # Remove leftover <think> and </think> tags
+    text = re.sub(r'</?think>', '', text)
+    return text.strip()
 
 
 def _load_chat_openai() -> Callable[..., Any]:
