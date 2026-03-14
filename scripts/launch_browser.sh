@@ -22,7 +22,6 @@ google-chrome \
     --disable-extensions \
     --disable-gpu \
     --no-proxy-server \
-    --headless=new \
     --no-sandbox \
     --disable-automation \
     --disable-blink-features=AutomationControlled \

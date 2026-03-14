@@ -36,13 +36,27 @@ class BrowserUseService:
         )
         self.max_retries = int(self.config.get("max_retries", os.getenv("MINIMAX_MAX_RETRIES", "2")))
         self.headless = self._parse_bool(
-            self.config.get("headless", os.getenv("PLAYWRIGHT_HEADLESS", "true"))
+            self.config.get("headless", os.getenv("PLAYWRIGHT_HEADLESS", "false"))
         )
         # CDP connection - use external browser if available
         self.cdp_url = self.config.get("cdp_url", self.DEFAULT_CDP_URL)
         self.use_external_browser = self._parse_bool(
-            self.config.get("use_external_browser", os.getenv("USE_EXTERNAL_BROWSER", "true"))
+            self.config.get("use_external_browser", os.getenv("USE_EXTERNAL_BROWSER", "false"))
         )
+        # Use stealth browser for anti-bot detection
+        self.use_stealth = self._parse_bool(
+            self.config.get("use_stealth", os.getenv("USE_STEALTH_BROWSER", "true"))
+        )
+        # Chrome profile path for persistent session
+        self.profile_path = self.config.get(
+            "profile_path", os.getenv("CHROME_PROFILE_PATH", "/tmp/chrome-profile")
+        )
+        # Custom user agent for stealth
+        self.user_agent = self.config.get(
+            "user_agent", os.getenv("CHROME_USER_AGENT", None)
+        )
+        # Browser channel (chrome, chromium, msedge)
+        self.channel = self.config.get("channel", os.getenv("CHROME_CHANNEL", "chrome"))
 
     async def initialize(self) -> bool:
         """Validate imports and provider configuration for browser-use."""
@@ -139,6 +153,14 @@ class BrowserUseService:
             ) from exc
         return Agent, Browser
 
+    def _load_stealth_playwright(self):
+        """Load rebrowser-playwright for stealth browsing."""
+        try:
+            from rebrowser_playwright.async_api import async_playwright
+            return async_playwright
+        except ImportError:
+            return None
+
     async def _run_task(self, task: str, reason: str, url: Optional[str] = None) -> BrowserResult:
         try:
             self._validate_runtime()
@@ -153,9 +175,42 @@ class BrowserUseService:
                     "max_retries": self.max_retries,
                 },
             )
-            # Use CDP URL if external browser is enabled
+            # Use stealth browser settings
             browser_kwargs = {}
-            if self.use_external_browser:
+            
+            if self.use_stealth:
+                # Use stealth arguments to avoid bot detection
+                browser_kwargs["headless"] = False
+                browser_kwargs["user_data_dir"] = self.profile_path
+                browser_kwargs["channel"] = self.channel  # Use "chrome" instead of "chromium"
+                
+                # More comprehensive stealth args
+                browser_kwargs["args"] = [
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-dev-shm-usage",
+                    "--disable-extensions",
+                    "--disable-background-networking",
+                    "--disable-default-apps",
+                    "--disable-sync",
+                    "--disable-translate",
+                    "--metrics-recording-only",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--hide-scrollbars",
+                    "--mute-audio",
+                    "--disable-features=TranslateUI",
+                    "--disable-ipc-flooding-protection",
+                    "--disable-renderer-backgrounding",
+                    "--enable-features=NetworkService,NetworkServiceInProcess",
+                ]
+                
+                # Add custom user agent if provided
+                if self.user_agent:
+                    browser_kwargs["user_agent"] = self.user_agent
+                
+                logger.info(f"Using stealth browser with profile: {self.profile_path}, channel: {self.channel}")
+            
+            if self.use_external_browser and not self.use_stealth:
                 browser_kwargs["cdp_url"] = self.cdp_url
             
             browser = Browser(**browser_kwargs) if browser_kwargs else Browser()
