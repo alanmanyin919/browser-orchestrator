@@ -62,33 +62,33 @@ class BrowserUseService:
         """Validate imports and provider configuration for browser-use."""
         try:
             self._validate_runtime()
-            logger.info("browser-use fallback service initialized")
+            logger.info("browser-use primary service initialized")
             return True
         except Exception as exc:
-            logger.error(f"Failed to initialize browser-use fallback: {exc}")
+            logger.error(f"Failed to initialize browser-use primary service: {exc}")
             return False
 
     async def web_search(self, query: str, max_results: int = 5) -> BrowserResult:
         """Use browser-use to search Google and summarize the top results."""
-        logger.info(f"Fallback: web_search '{query}'")
+        logger.info(f"Primary: web_search '{query}'")
         task = (
             f"Open Google search for '{query}'. Collect up to {max_results} organic results. "
             "Return a concise plain-text list. Each item must include title, URL, and a short snippet."
         )
-        return await self._run_task(task, reason="Fallback used for complex search")
+        return await self._run_task(task, reason="Primary browser-use search")
 
     async def open_page(self, url: str) -> BrowserResult:
         """Use browser-use to open a page and report final location metadata."""
-        logger.info(f"Fallback: open_page {url}")
+        logger.info(f"Primary: open_page {url}")
         task = (
             f"Open {url}. Do not browse elsewhere unless redirected. "
             "Return the page title and final URL in plain text."
         )
-        return await self._run_task(task, reason="Fallback used for complex navigation", url=url)
+        return await self._run_task(task, reason="Primary browser-use navigation", url=url)
 
     async def extract_page(self, url: Optional[str] = None) -> BrowserResult:
         """Use browser-use to extract visible content from a page."""
-        logger.info(f"Fallback: extract_page {url or '[current page]'}")
+        logger.info(f"Primary: extract_page {url or '[current page]'}")
         task = (
             f"Open {url}. Extract the main visible page content in plain text and summarize the page."
             if url
@@ -96,31 +96,31 @@ class BrowserUseService:
         )
         return await self._run_task(
             task,
-            reason="Fallback used for dynamic content extraction",
+            reason="Primary browser-use content extraction",
             url=url,
         )
 
     async def read_top_results(self, query: str, max_results: int = 3) -> BrowserResult:
         """Use browser-use to search and summarize multiple top results."""
-        logger.info(f"Fallback: read_top_results '{query}' max={max_results}")
+        logger.info(f"Primary: read_top_results '{query}' max={max_results}")
         task = (
             f"Search Google for '{query}'. Open the top {max_results} useful results and summarize the key findings. "
             "Return a concise multi-source summary with source URLs."
         )
-        return await self._run_task(task, reason="Fallback used for multi-page reading")
+        return await self._run_task(task, reason="Primary browser-use multi-page reading")
 
     async def navigate_and_extract(self, task: str, url: str) -> BrowserResult:
         """Use browser-use for task-oriented browsing."""
-        logger.info(f"Fallback: navigate_and_extract '{task}' -> {url}")
+        logger.info(f"Primary: navigate_and_extract '{task}' -> {url}")
         prompt = (
             f"Start at {url}. Complete this task: {task}. "
             "Return the final answer, include important supporting details, and list the URLs visited."
         )
-        return await self._run_task(prompt, reason="Fallback used for multi-step workflow", url=url)
+        return await self._run_task(prompt, reason="Primary browser-use multi-step workflow", url=url)
 
     async def close(self):
         """No-op because browser-use runs per request."""
-        logger.info("Closing browser-use fallback service")
+        logger.info("Closing browser-use primary service")
 
     def check_ready(self) -> bool:
         """Synchronous readiness check for health probes."""
@@ -246,14 +246,14 @@ class BrowserUseService:
                 confidence=confidence if content else "low",
                 error=None if content else "browser-use completed without returning output",
                 metadata=Metadata(
-                    used_fallback=True,
+                    used_fallback=False,
                     reason=reason,
                     visited_urls=visited_urls,
                     attempt_count=1,
                 ),
             )
         except (LLMConfigurationError, Exception) as exc:
-            logger.error(f"Fallback execution failed: {exc}")
+            logger.error(f"Primary browser-use execution failed: {exc}")
             return BrowserResult(
                 status="failed",
                 backend="better-browser-use",
@@ -261,7 +261,7 @@ class BrowserUseService:
                 error=str(exc),
                 confidence="low",
                 metadata=Metadata(
-                    used_fallback=True,
+                    used_fallback=False,
                     reason=reason,
                     visited_urls=[url] if url else [],
                     attempt_count=1,
